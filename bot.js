@@ -15,6 +15,30 @@ const combinations = [
   [2, 4, 6]
 ]
 
+let messageId = null
+let finished = true
+
+const updateMessage = (chatId, text) => {
+  bot.editMessageText(text, {
+    chat_id: chatId,
+    message_id: messageId
+  }).then(() => {
+    bot.editMessageReplyMarkup({
+      inline_keyboard: renderButtons(field)
+    }, {
+      chat_id: chatId,
+      message_id: messageId
+    })
+  })
+}
+
+const checkDraw = () => {
+  if (field.find((cell) => cell === '_')) {
+    return false
+  } else {
+    return true
+  }
+}
 const checkWin = (sign) => {
   for (const combination of combinations) {
     let count = 0
@@ -52,11 +76,15 @@ bot.onText(/\/game/, (msg) => {
   const chatId = msg.chat.id
   try {
     field = ['_', '_', '_', '_', '_', '_', '_', '_', '_']
+    finished = false
     bot.sendMessage(chatId, 'Ваш ход', {
       reply_markup: {
         inline_keyboard: renderButtons(field)
       }
+    }).then(msg => {
+      messageId = msg.message_id
     })
+
   } catch (err) {
     console.log('Error!', err)
     bot.sendMessage(chatId, 'Ошибочка вышла')
@@ -88,38 +116,41 @@ bot.on('callback_query', (query) => {
     const chatId = query.message.chat.id
     console.log(query.data)
     const [action, ...params] = query.data.split('-')
-    // console.log(action, params)
-    //t = пользователь сделал ход
     if (action === 't') {
+      if (finished) {
+        updateMessage(chatId, 'игра завершена!')
+        return
+      }
       const [sign, position] = params
       if (field[position] !== '_') {
-        return bot.sendMessage(chatId, 'клетка занята')
+        updateMessage(chatId, 'клетка занята!')
+        return
       }
       field[position] = sign
       if (checkWin(sign)) {
-        bot.sendMessage(chatId, 'вы победили!', {
-          reply_markup: {
-            inline_keyboard: renderButtons(field)
-          }
-        })
+        finished = true
+        updateMessage(chatId, 'вы победили!')
+        return
+      }
+      if (checkDraw()) {
+        finished = true
+        updateMessage(chatId, 'ничья!')
         return
       }
       const position2 = getFreeRandomIndex()
       const sign2 = sign === 'x' ? 'o' : 'x'
       field[position2] = sign2
       if (checkWin(sign2)) {
-        bot.sendMessage(chatId, 'вы проиграли!', {
-          reply_markup: {
-            inline_keyboard: renderButtons(field)
-          }
-        })
+        finished = true
+        updateMessage(chatId, 'вы проиграли!')
         return
       }
-      bot.sendMessage(chatId, 'Ваш ход', {
-        reply_markup: {
-          inline_keyboard: renderButtons(field)
-        }
-      })
+      if (checkDraw()) {
+        finished = true
+        updateMessage(chatId, 'ничья!')
+        return
+      }
+      updateMessage(chatId, 'ваш ход!')
     }
   }
   catch (err) {
